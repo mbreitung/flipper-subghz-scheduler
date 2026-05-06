@@ -14,6 +14,7 @@ typedef struct {
     FuriString* tx_mode;
     FuriString* interval;
     FuriString* tx_count;
+    FuriString* tx_cycles;
     FuriString* file_type;
     FuriString* file_name;
     FuriString* tx_countdown;
@@ -89,6 +90,17 @@ static void scheduler_run_view_draw_callback(Canvas* canvas, SchedulerRunViewMod
         AlignCenter,
         furi_string_get_cstr(model->tx_count));
 
+    /* ============= TX CYCLES ============= */
+    canvas_draw_frame(canvas, 98, GUI_TABLE_ROW_A, 33, GUI_TEXTBOX_HEIGHT);
+    canvas_draw_icon(canvas, GUI_MARGIN + 98, (GUI_TEXT_GAP * 2) - 4, &I_rept_7px);
+    canvas_draw_str_aligned(
+        canvas,
+        GUI_MARGIN + 114,
+        (GUI_TEXT_GAP * 2),
+        AlignCenter,
+        AlignCenter,
+        furi_string_get_cstr(model->tx_cycles));
+
     /* ============= RADIO ============= */
     canvas_draw_frame(canvas, 98, GUI_TABLE_ROW_B, 33, GUI_TEXTBOX_HEIGHT);
     canvas_draw_icon(canvas, GUI_MARGIN + 98, (GUI_TEXT_GAP * 3) - 5, &I_sub2_10px);
@@ -144,6 +156,7 @@ SchedulerRunView* scheduler_run_view_alloc() {
             model->tx_mode = furi_string_alloc();
             model->interval = furi_string_alloc();
             model->tx_count = furi_string_alloc();
+            model->tx_cycles = furi_string_alloc();
             model->file_type = furi_string_alloc();
             model->file_name = furi_string_alloc();
             model->tx_countdown = furi_string_alloc();
@@ -165,6 +178,7 @@ void scheduler_run_view_free(SchedulerRunView* run_view) {
             furi_string_free(model->tx_mode);
             furi_string_free(model->interval);
             furi_string_free(model->tx_count);
+            furi_string_free(model->tx_cycles);
             furi_string_free(model->file_type);
             furi_string_free(model->file_name);
             furi_string_free(model->tx_countdown);
@@ -195,6 +209,7 @@ void scheduler_run_view_set_static_fields(SchedulerRunView* run_view, Scheduler*
             furi_string_set(model->tx_mode, tx_mode_text[scheduler_get_tx_mode(scheduler)]);
             furi_string_set(model->interval, hms);
             furi_string_set(model->tx_count, tx_count_text[scheduler_get_tx_count(scheduler)]);
+            furi_string_set(model->tx_cycles, tx_cycles_text[scheduler_get_tx_cycles(scheduler)]);
             furi_string_set(model->file_type, file_type_text[scheduler_get_file_type(scheduler)]);
             furi_string_set(model->file_name, scheduler_get_file_name(scheduler));
             furi_string_set(model->radio, scheduler_get_radio(scheduler) ? "Ext" : "Int");

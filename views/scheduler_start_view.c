@@ -25,6 +25,13 @@ static void set_tx_count_idx(Scheduler* s, uint8_t idx) {
     scheduler_set_tx_count(s, idx);
 }
 
+static uint8_t get_tx_cycles_idx(const Scheduler* s) {
+    return scheduler_get_tx_cycles((Scheduler*)s);
+}
+static void set_tx_cycles_idx(Scheduler* s, uint8_t idx) {
+    scheduler_set_tx_cycles(s, idx);
+}
+
 static uint8_t get_tx_mode_idx(const Scheduler* s) {
     return (uint8_t)scheduler_get_tx_mode((Scheduler*)s);
 }
@@ -102,6 +109,13 @@ static void scheduler_start_set_tx_count(VariableItem* item) {
     scheduler_set_tx_count(app->scheduler, index);
 }
 
+static void scheduler_start_set_tx_cycles(VariableItem* item) {
+    SchedulerApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, tx_cycles_text[index]);
+    scheduler_set_tx_cycles(app->scheduler, index);
+}
+
 static void scheduler_start_set_mode(VariableItem* item) {
     SchedulerApp* app = variable_item_get_context(item);
     SchedulerTxMode index = variable_item_get_current_value_index(item);
@@ -162,12 +176,22 @@ void scheduler_start_view_rebuild(SchedulerApp* app) {
     add_scheduler_option_item(
         list,
         app,
-        "TX Count:",
+        "TX Count/Cycle:",
         TX_COUNT,
         scheduler_start_set_tx_count,
         get_tx_count_idx,
         set_tx_count_idx,
         tx_count_text);
+
+    add_scheduler_option_item(
+        list,
+        app,
+        "TX Cycles:",
+        TX_CYCLES,
+        scheduler_start_set_tx_cycles,
+        get_tx_cycles_idx,
+        set_tx_cycles_idx,
+        tx_cycles_text);
 
     add_scheduler_option_item(
         list,

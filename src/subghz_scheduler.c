@@ -3,6 +3,8 @@
 
 #define TAG "SubGHzScheduler"
 
+static const uint32_t tx_cycles_count[TX_CYCLES] = {1, 10, 25, 40, 100, UINT32_MAX};
+
 struct Scheduler {
     uint32_t previous_run_time;
     uint32_t countdown;
@@ -18,6 +20,8 @@ struct Scheduler {
     uint32_t interval_seconds;
 
     uint8_t tx_count;
+    uint8_t tx_cycles;
+    uint8_t tx_cycle_counter;
     uint8_t list_count;
 
     bool radio;
@@ -43,14 +47,17 @@ void scheduler_time_reset(Scheduler* scheduler) {
     furi_assert(scheduler);
     scheduler->previous_run_time = 0;
     scheduler->countdown = 0;
+    scheduler->tx_cycle_counter = 0;
 }
 
 void scheduler_full_reset(Scheduler* scheduler) {
     furi_assert(scheduler);
     scheduler_time_reset(scheduler);
-    scheduler->tx_delay_ms = 100;
+    scheduler->tx_delay_ms = 250;
     scheduler->interval_seconds = 10; // Still default to 10 sec?
     scheduler->tx_count = 0;
+    scheduler->tx_cycles = 0;
+    scheduler->tx_cycle_counter = 0;
     scheduler->file_type = SchedulerFileTypeSingle;
     scheduler->list_count = 1;
     scheduler->file_name = NULL;
@@ -78,6 +85,11 @@ void scheduler_set_timing_mode(Scheduler* scheduler, bool tx_mode) {
 void scheduler_set_tx_count(Scheduler* scheduler, uint8_t tx_count) {
     furi_assert(scheduler);
     scheduler->tx_count = tx_count;
+}
+
+void scheduler_set_tx_cycles(Scheduler* scheduler, uint8_t tx_cycles) {
+    furi_assert(scheduler);
+    scheduler->tx_cycles = tx_cycles;
 }
 
 void scheduler_set_tx_mode(Scheduler* scheduler, SchedulerTxMode tx_mode) {
@@ -133,13 +145,33 @@ bool scheduler_time_to_trigger(Scheduler* scheduler) {
         return false; // Don't trigger immediately
     }
 
-    if(scheduler->countdown == 0) {
+    if(scheduler->countdown == 0 && !scheduler_time_to_end(scheduler)) {
         scheduler->previous_run_time = current_time;
         scheduler->countdown = interval;
+        FURI_LOG_D(
+            TAG, "tx_cycle_counter = %d/%d", scheduler->tx_cycle_counter, scheduler->tx_cycles);
+        scheduler->tx_cycle_counter++;
         return true;
     }
+    FURI_LOG_D(TAG, "previous time %ld", scheduler->previous_run_time);
+    FURI_LOG_D(TAG, "countdown %ld", scheduler->countdown);
     scheduler->countdown--;
     return false;
+}
+
+bool scheduler_time_to_end(Scheduler* scheduler) {
+    furi_assert(scheduler);
+
+    uint32_t limit = tx_cycles_count[scheduler->tx_cycles];
+    if((uint32_t)scheduler->tx_cycle_counter < limit) {
+        FURI_LOG_D(
+            TAG, "time to end false %d/%d", scheduler->tx_cycle_counter, scheduler->tx_cycles);
+        return false;
+    } else {
+        FURI_LOG_D(
+            TAG, "time to end true %d/%d", scheduler->tx_cycle_counter, scheduler->tx_cycles);
+        return true;
+    }
 }
 
 uint32_t scheduler_get_previous_time(Scheduler* scheduler) {
@@ -160,6 +192,11 @@ uint32_t scheduler_get_countdown_seconds(Scheduler* scheduler) {
 uint8_t scheduler_get_tx_count(Scheduler* scheduler) {
     furi_assert(scheduler);
     return scheduler->tx_count;
+}
+
+uint8_t scheduler_get_tx_cycles(Scheduler* scheduler) {
+    furi_assert(scheduler);
+    return scheduler->tx_cycles;
 }
 
 const char* scheduler_get_file_name(Scheduler* scheduler) {

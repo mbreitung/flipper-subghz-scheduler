@@ -42,7 +42,11 @@ bool scheduler_scene_run_on_event(void* context, SceneManagerEvent event) {
 
             const bool trig = scheduler_time_to_trigger(app->scheduler);
             if(trig) {
+                FURI_LOG_D("scheduler_scene_run", "triggered %d", tick_counter);
                 scheduler_start_tx(app);
+            } else if(scheduler_time_to_end(app->scheduler)) {
+                notification_message(app->notifications, &sequence_blink_green_10);
+                // do somthing to stop the application thread
             } else {
                 notification_message(app->notifications, &sequence_blink_red_10);
             }

@@ -2,7 +2,7 @@
 #include "helpers/scheduler_hms.h"
 #include "scheduler_interval_view.h"
 #include "src/scheduler_app_i.h"
-#include "subghz_scheduler_icons.h"
+#include "subghz_scheduler_2_icons.h"
 
 typedef enum {
     EditStateNone,

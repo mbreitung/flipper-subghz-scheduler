@@ -80,7 +80,7 @@ static void
 
     if(subghz_devices_start_async_tx(device, subghz_transmitter_yield, transmitter)) {
         while(!subghz_devices_is_async_complete_tx(device)) {
-            furi_delay_ms(5);
+            furi_delay_ms(10);
         }
         subghz_devices_stop_async_tx(device);
     }
@@ -112,6 +112,9 @@ static int32_t scheduler_tx(void* context) {
 
     tx_run->tx_delay_ms = scheduler_get_tx_delay_ms(app->scheduler);
     do {
+        //        flipper_format_free(tx_run->fff_data);
+        //        tx_run->fff_data = flipper_format_string_alloc();
+
         if(!flipper_format_file_open_existing(
                tx_run->fff_file, furi_string_get_cstr(tx_run->data))) {
             FURI_LOG_E(TAG, "Error loading file!");
@@ -151,8 +154,10 @@ static int32_t scheduler_tx(void* context) {
             tx_run->frequency = subghz_devices_set_frequency(device, tx_run->frequency);
 
             transmit(app, device, transmitter);
+            FURI_LOG_D(TAG, "transmitting frequency: %ld", tx_run->frequency);
 
             furi_delay_ms(tx_run->tx_delay_ms);
+            subghz_devices_reset(device);
         }
     } while(tx_run->filetype == SchedulerFileTypePlaylist &&
             flipper_format_read_string(tx_run->fff_head, "sub", tx_run->data));

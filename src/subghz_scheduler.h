@@ -15,6 +15,7 @@ void scheduler_time_reset(Scheduler* scheduler);
 void scheduler_reset_previous_time(Scheduler* scheduler);
 
 bool scheduler_time_to_trigger(Scheduler* scheduler);
+bool scheduler_time_to_end(Scheduler* scheduler);
 
 void scheduler_set_interval_seconds(Scheduler* scheduler, uint32_t interval_seconds);
 uint32_t scheduler_get_interval_seconds(Scheduler* scheduler);
@@ -26,6 +27,9 @@ bool scheduler_get_timing_mode(Scheduler* scheduler);
 
 void scheduler_set_tx_count(Scheduler* scheduler, uint8_t tx_count);
 uint8_t scheduler_get_tx_count(Scheduler* scheduler);
+
+void scheduler_set_tx_cycles(Scheduler* scheduler, uint8_t tx_cycles);
+uint8_t scheduler_get_tx_cycles(Scheduler* scheduler);
 
 void scheduler_set_tx_mode(Scheduler* scheduler, SchedulerTxMode tx_mode);
 SchedulerTxMode scheduler_get_tx_mode(Scheduler* scheduler);

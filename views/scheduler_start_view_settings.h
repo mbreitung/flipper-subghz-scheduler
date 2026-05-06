@@ -4,6 +4,7 @@ typedef enum MenuIndices {
     MenuIndexInterval,
     MenuIndexTiming,
     MenuIndexTxCount,
+    MenuIndexTxCycles,
     MenuIndexTxMode,
     MenuIndexTxDelay,
     MenuIndexTxRadio,
@@ -53,6 +54,16 @@ static const char* const tx_count_text[TX_COUNT] = {
     "x4",
     "x5",
     "x6",
+};
+
+#define TX_CYCLES 6
+static const char* const tx_cycles_text[TX_CYCLES] = {
+    "x1",
+    "x10",
+    "x25",
+    "x40",
+    "x100",
+    "x9999999999",
 };
 
 #define RADIO_DEVICE_COUNT 2
