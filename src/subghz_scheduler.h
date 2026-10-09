@@ -22,8 +22,13 @@ uint32_t scheduler_get_interval_seconds(Scheduler* scheduler);
 
 uint32_t scheduler_get_countdown_seconds(Scheduler* scheduler);
 
-void scheduler_set_timing_mode(Scheduler* scheduler, bool timing_mode);
-bool scheduler_get_timing_mode(Scheduler* scheduler);
+void scheduler_set_timing_mode(Scheduler* scheduler, SchedulerTimingMode timing_mode);
+SchedulerTimingMode scheduler_get_timing_mode(Scheduler* scheduler);
+
+void scheduler_set_random_bounds(Scheduler* scheduler, uint32_t lower, uint32_t upper);
+uint32_t scheduler_get_random_lower(Scheduler* scheduler);
+uint32_t scheduler_get_random_upper(Scheduler* scheduler);
+void scheduler_roll_random_interval(Scheduler* scheduler);
 
 void scheduler_set_tx_count(Scheduler* scheduler, uint8_t tx_count);
 uint8_t scheduler_get_tx_count(Scheduler* scheduler);

@@ -37,10 +37,13 @@ static const char* const tx_mode_text[SchedulerTxModeSettingsNum] = {
 typedef enum SchedulerTimingMode {
     SchedulerTimingModeRelative,
     SchedulerTimingModePrecise,
+    SchedulerTimingModeRandom,
     SchedulerTimingModeNum
 } SchedulerTimingMode;
 #define TIMING_MODE_COUNT SchedulerTimingModeNum
-static const char* const timing_mode_text[TIMING_MODE_COUNT] = {"Relative", "Precise"};
+static const char* const timing_mode_text[TIMING_MODE_COUNT] = {"Relative", "Precise", "Random"};
+
+#define SCHEDULER_RANDOM_INTERVAL_FILE "/ext/subghz_scheduler/random.txt"
 
 #define TX_DELAY_STEP_MS 50
 #define TX_DELAY_MAX_MS  1000
