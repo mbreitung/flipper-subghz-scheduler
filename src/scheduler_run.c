@@ -112,9 +112,13 @@ static int32_t scheduler_tx(void* context) {
 
     tx_run->tx_delay_ms = scheduler_get_tx_delay_ms(app->scheduler);
     do {
-        //        flipper_format_free(tx_run->fff_data);
-        //        tx_run->fff_data = flipper_format_string_alloc();
+        flipper_format_free(tx_run->fff_data);
+        tx_run->fff_data = flipper_format_string_alloc();
 
+        flipper_format_free(tx_run->fff_file);
+        tx_run->fff_file = flipper_format_file_alloc(tx_run->storage);
+
+        FURI_LOG_I(TAG, "Playlist item: %s", furi_string_get_cstr(tx_run->data));
         if(!flipper_format_file_open_existing(
                tx_run->fff_file, furi_string_get_cstr(tx_run->data))) {
             FURI_LOG_E(TAG, "Error loading file!");
@@ -125,6 +129,12 @@ static int32_t scheduler_tx(void* context) {
         flipper_format_read_uint32(tx_run->fff_file, "Frequency", &tx_run->frequency, 1);
         flipper_format_read_string(tx_run->fff_file, "Preset", tx_run->preset);
         flipper_format_read_string(tx_run->fff_file, "Protocol", tx_run->protocol);
+        FURI_LOG_I(
+            TAG,
+            "freq=%lu preset=%s proto=%s",
+            tx_run->frequency,
+            furi_string_get_cstr(tx_run->preset),
+            furi_string_get_cstr(tx_run->protocol));
 
         if(furi_string_equal(tx_run->protocol, "RAW")) {
             subghz_protocol_raw_gen_fff_data(
@@ -138,6 +148,26 @@ static int32_t scheduler_tx(void* context) {
         }
         flipper_format_file_close(tx_run->fff_file);
 
+        uint8_t key_bytes[8] = {0};
+        flipper_format_rewind(tx_run->fff_data);
+        if(flipper_format_read_hex(
+               tx_run->fff_data, "Key", key_bytes, sizeof(key_bytes))) {
+            FURI_LOG_I(
+                TAG,
+                "Key: %02X %02X %02X %02X %02X %02X %02X %02X",
+                key_bytes[0],
+                key_bytes[1],
+                key_bytes[2],
+                key_bytes[3],
+                key_bytes[4],
+                key_bytes[5],
+                key_bytes[6],
+                key_bytes[7]);
+        } else {
+            FURI_LOG_I(TAG, "Key: <not read>");
+        }
+        flipper_format_rewind(tx_run->fff_data);
+
         uint8_t tx_count = scheduler_get_tx_count(app->scheduler);
         for(uint_fast8_t i = 0; i <= tx_count; ++i) {
             subghz_environment_set_protocol_registry(
@@ -149,18 +179,21 @@ static int32_t scheduler_tx(void* context) {
 
             FuriHalSubGhzPreset preset_enum =
                 scheduler_get_subghz_preset_name(furi_string_get_cstr(tx_run->preset));
+            subghz_devices_idle(device);
             subghz_devices_load_preset(device, preset_enum, NULL);
-
+            subghz_devices_idle(device);
             tx_run->frequency = subghz_devices_set_frequency(device, tx_run->frequency);
 
             transmit(app, device, transmitter);
             FURI_LOG_D(TAG, "transmitting frequency: %ld", tx_run->frequency);
 
             furi_delay_ms(tx_run->tx_delay_ms);
-            subghz_devices_reset(device);
         }
-    } while(tx_run->filetype == SchedulerFileTypePlaylist &&
-            flipper_format_read_string(tx_run->fff_head, "sub", tx_run->data));
+        bool more = tx_run->filetype == SchedulerFileTypePlaylist &&
+                    flipper_format_read_string(tx_run->fff_head, "sub", tx_run->data);
+        FURI_LOG_I(TAG, "Playlist next=%d data=%s", more, furi_string_get_cstr(tx_run->data));
+        if(!more) break;
+    } while(true);
 
     subghz_devices_sleep(device);
     subghz_devices_end(device);
