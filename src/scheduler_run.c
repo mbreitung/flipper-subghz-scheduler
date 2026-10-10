@@ -78,10 +78,15 @@ static void
     notification_message(app->notifications, &sequence_blink_stop);
     notification_message(app->notifications, &sequence_blink_start_cyan);
 
-    if(subghz_devices_start_async_tx(device, subghz_transmitter_yield, transmitter)) {
+    bool started = subghz_devices_start_async_tx(device, subghz_transmitter_yield, transmitter);
+    FURI_LOG_I(TAG, "start_async_tx returned %d", started);
+    if(started) {
+        uint32_t waited_ms = 0;
         while(!subghz_devices_is_async_complete_tx(device)) {
             furi_delay_ms(10);
+            waited_ms += 10;
         }
+        FURI_LOG_I(TAG, "async_tx completed after %lu ms", waited_ms);
         subghz_devices_stop_async_tx(device);
     }
 
@@ -98,7 +103,10 @@ static int32_t scheduler_tx(void* context) {
 
     const bool radio = scheduler_get_radio(app->scheduler);
     const SubGhzDevice* device = subghz_devices_get_by_name(radio_device_name[radio]);
-    subghz_devices_begin(device);
+    FURI_LOG_I(TAG, "device=%p radio=%d connect=%d",
+               (void*)device, radio, device ? subghz_devices_is_connect(device) : 0);
+    bool began = subghz_devices_begin(device);
+    FURI_LOG_I(TAG, "begin returned %d", began);
     subghz_devices_reset(device);
 
     tx_run->filetype = scheduler_get_file_type(app->scheduler);
@@ -174,15 +182,21 @@ static int32_t scheduler_tx(void* context) {
                 tx_run->environment, (void*)&subghz_protocol_registry);
             SubGhzTransmitter* transmitter = subghz_transmitter_alloc_init(
                 tx_run->environment, furi_string_get_cstr(tx_run->protocol));
+            FURI_LOG_I(TAG, "transmitter alloc_init: %p", (void*)transmitter);
 
-            subghz_transmitter_deserialize(transmitter, tx_run->fff_data);
+            SubGhzProtocolStatus ds_status =
+                subghz_transmitter_deserialize(transmitter, tx_run->fff_data);
+            FURI_LOG_I(TAG, "deserialize status: %d", ds_status);
 
             FuriHalSubGhzPreset preset_enum =
                 scheduler_get_subghz_preset_name(furi_string_get_cstr(tx_run->preset));
             subghz_devices_idle(device);
+            FURI_LOG_I(TAG, "load_preset enum=%d", preset_enum);
             subghz_devices_load_preset(device, preset_enum, NULL);
             subghz_devices_idle(device);
+            uint32_t req_freq = tx_run->frequency;
             tx_run->frequency = subghz_devices_set_frequency(device, tx_run->frequency);
+            FURI_LOG_I(TAG, "set_frequency req=%lu actual=%lu", req_freq, tx_run->frequency);
 
             transmit(app, device, transmitter);
             FURI_LOG_D(TAG, "transmitting frequency: %ld", tx_run->frequency);
