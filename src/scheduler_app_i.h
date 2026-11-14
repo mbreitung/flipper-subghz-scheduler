@@ -58,6 +58,7 @@ struct SchedulerApp {
     char popup_msg[80];
     char save_name_tmp[SCHEDULER_MAX_LEN_NAME];
     volatile bool is_transmitting;
+    volatile bool stop_tx; // set by run scene on exit; TX thread bails out at next check
     bool should_reset;
     bool ext_radio_present;
 };
