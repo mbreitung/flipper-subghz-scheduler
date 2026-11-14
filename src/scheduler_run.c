@@ -96,6 +96,20 @@ static void
     notification_message(app->notifications, &sequence_blink_stop);
 }
 
+#define TX_WAIT_SLICE_MS 50
+
+// Sleeps for `ms` in short slices so a stop request (Back) is noticed quickly.
+// Returns false if stopped early.
+static bool tx_wait(SchedulerApp* app, uint32_t ms) {
+    while(ms > 0) {
+        if(app->stop_tx) return false;
+        const uint32_t slice = ms < TX_WAIT_SLICE_MS ? ms : TX_WAIT_SLICE_MS;
+        furi_delay_ms(slice);
+        ms -= slice;
+    }
+    return !app->stop_tx;
+}
+
 static int32_t scheduler_tx(void* context) {
     furi_assert(context);
     SchedulerApp* app = context;
@@ -177,7 +191,7 @@ static int32_t scheduler_tx(void* context) {
         flipper_format_rewind(tx_run->fff_data);
 
         uint8_t tx_count = scheduler_get_tx_count(app->scheduler);
-        for(uint_fast8_t i = 0; i <= tx_count; ++i) {
+        for(uint_fast8_t i = 0; i <= tx_count && !app->stop_tx; ++i) {
             subghz_environment_set_protocol_registry(
                 tx_run->environment, (void*)&subghz_protocol_registry);
             SubGhzTransmitter* transmitter = subghz_transmitter_alloc_init(
@@ -201,7 +215,11 @@ static int32_t scheduler_tx(void* context) {
             transmit(app, device, transmitter);
             FURI_LOG_D(TAG, "transmitting frequency: %ld", tx_run->frequency);
 
-            furi_delay_ms(tx_run->tx_delay_ms);
+            if(!tx_wait(app, tx_run->tx_delay_ms)) break;
+        }
+        if(app->stop_tx) {
+            FURI_LOG_I(TAG, "TX stopped by user");
+            break;
         }
         bool more = tx_run->filetype == SchedulerFileTypePlaylist &&
                     flipper_format_read_string(tx_run->fff_head, "sub", tx_run->data);
@@ -240,6 +258,7 @@ void scheduler_start_tx(SchedulerApp* app) {
     if(app->thread || app->is_transmitting) {
         return;
     }
+    app->stop_tx = false;
     app->thread = furi_thread_alloc_ex("SchedulerTxThread", 1024, scheduler_tx, app);
     furi_thread_set_state_callback(app->thread, scheduler_thread_state_callback);
     furi_thread_set_state_context(app->thread, app);
