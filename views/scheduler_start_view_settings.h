@@ -45,8 +45,8 @@ static const char* const timing_mode_text[TIMING_MODE_COUNT] = {"Relative", "Pre
 
 #define SCHEDULER_RANDOM_INTERVAL_FILE "/ext/subghz_scheduler/random.txt"
 
-#define TX_DELAY_STEP_MS 50
-#define TX_DELAY_MAX_MS  1000
+#define TX_DELAY_STEP_MS 250
+#define TX_DELAY_MAX_MS  60000
 #define TX_DELAY_COUNT   ((TX_DELAY_MAX_MS / TX_DELAY_STEP_MS) + 1)
 
 #define TX_COUNT 6
