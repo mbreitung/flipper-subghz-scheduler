@@ -6,9 +6,10 @@
 
 #define TAG "SubGhzSchedulerRandomIO"
 
-bool scheduler_load_random_bounds(Scheduler* scheduler, Storage* storage) {
+bool scheduler_load_random_bounds(Scheduler* scheduler, Storage* storage, const char* path) {
     furi_assert(scheduler);
     furi_assert(storage);
+    furi_assert(path);
 
     FlipperFormat* ff = flipper_format_file_alloc(storage);
     bool ok = false;
@@ -16,8 +17,8 @@ bool scheduler_load_random_bounds(Scheduler* scheduler, Storage* storage) {
     uint32_t upper = 0;
 
     do {
-        if(!flipper_format_file_open_existing(ff, SCHEDULER_RANDOM_INTERVAL_FILE)) {
-            FURI_LOG_W(TAG, "no bounds file at %s", SCHEDULER_RANDOM_INTERVAL_FILE);
+        if(!flipper_format_file_open_existing(ff, path)) {
+            FURI_LOG_W(TAG, "no bounds file at %s", path);
             break;
         }
         if(!flipper_format_read_uint32(ff, "Lower", &lower, 1)) {
@@ -26,6 +27,10 @@ bool scheduler_load_random_bounds(Scheduler* scheduler, Storage* storage) {
         }
         if(!flipper_format_read_uint32(ff, "Upper", &upper, 1)) {
             FURI_LOG_E(TAG, "missing Upper key");
+            break;
+        }
+        if(lower == 0 || upper < lower) {
+            FURI_LOG_E(TAG, "invalid bounds: %lu-%lu", lower, upper);
             break;
         }
         ok = true;

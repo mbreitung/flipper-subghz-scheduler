@@ -19,6 +19,7 @@
 #define KEY_SCHEDULE_FILE "TxFile"
 #define KEY_SCHEDULE_TYPE "TxFileType"
 #define KEY_LIST_COUNT    "ListCount"
+#define KEY_RANDOM_FILE   "RandomFile"
 
 typedef struct {
     uint32_t interval_seconds;
@@ -92,6 +93,8 @@ bool scheduler_settings_save_to_path(SchedulerApp* app, const char* full_path) {
 
         v = scheduler_get_list_count(app->scheduler);
         flipper_format_write_uint32(ff, KEY_LIST_COUNT, &v, 1);
+
+        flipper_format_write_string(ff, KEY_RANDOM_FILE, app->random_file_path);
 
         ok = true;
     } while(false);
@@ -209,6 +212,13 @@ bool scheduler_settings_load_from_path(SchedulerApp* app, const char* full_path)
             }
         }
         // TODO: Error here too
+
+        // Optional (older .sch files lack it): rewind so its position in the file doesn't matter
+        furi_string_set(app->random_file_path, SCHEDULER_RANDOM_INTERVAL_FILE);
+        if(flipper_format_rewind(ff) &&
+           flipper_format_read_string(ff, KEY_RANDOM_FILE, sched_file)) {
+            furi_string_set(app->random_file_path, sched_file);
+        }
 
         ok = true;
     } while(false);

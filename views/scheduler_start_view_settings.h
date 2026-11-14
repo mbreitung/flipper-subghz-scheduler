@@ -3,6 +3,7 @@
 typedef enum MenuIndices {
     MenuIndexInterval,
     MenuIndexTiming,
+    MenuIndexRandomFile, // only present in the list when timing mode is Random
     MenuIndexTxCount,
     MenuIndexTxCycles,
     MenuIndexTxMode,
@@ -43,6 +44,7 @@ typedef enum SchedulerTimingMode {
 #define TIMING_MODE_COUNT SchedulerTimingModeNum
 static const char* const timing_mode_text[TIMING_MODE_COUNT] = {"Relative", "Precise", "Random"};
 
+// Default bounds file; user may pick another via "Random File" in the start menu
 #define SCHEDULER_RANDOM_INTERVAL_FILE "/ext/subghz_scheduler/random.txt"
 
 #define TX_DELAY_STEP_MS 50

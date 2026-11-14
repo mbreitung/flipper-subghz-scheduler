@@ -67,6 +67,7 @@ SchedulerApp* scheduler_app_alloc(void) {
     expansion_disable(app->expansion);
 
     app->tx_file_path = furi_string_alloc();
+    app->random_file_path = furi_string_alloc_set_str(SCHEDULER_RANDOM_INTERVAL_FILE);
 
     app->save_dir = furi_string_alloc();
 
@@ -178,6 +179,7 @@ void scheduler_app_free(SchedulerApp* app) {
 
     furi_string_free(app->save_dir);
     furi_string_free(app->tx_file_path);
+    furi_string_free(app->random_file_path);
 
     furi_record_close(RECORD_NOTIFICATION);
     furi_record_close(RECORD_DIALOGS);
