@@ -25,6 +25,8 @@ void scheduler_scene_run_on_enter(void* context) {
 void scheduler_scene_run_on_exit(void* context) {
     SchedulerApp* app = context;
 
+    // Ask the TX thread to stop so join doesn't wait out long TX delays
+    app->stop_tx = true;
     if(app->thread != NULL) {
         furi_thread_join(app->thread);
         app->thread = NULL;
