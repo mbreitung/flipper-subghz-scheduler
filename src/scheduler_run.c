@@ -7,6 +7,16 @@
 #include <subghz_protocol_registry.h>
 #include <transmitter.h>
 
+// Unleashed-only: Princeton (and other) encoders remember the button code of
+// the first key sent in a firmware-wide "custom button" state and substitute it
+// into every later key until subghz_custom_btns_reset() is called. The native
+// SubGHz app resets it; we must too, or a playlist starting with A up (0x03)
+// sends B up (0x33) as 0x303 and Pwr_on (0x30) as A up.
+#if __has_include(<blocks/custom_btn.h>)
+#include <blocks/custom_btn.h>
+#define SCHEDULER_HAS_CUSTOM_BTN 1
+#endif
+
 #define TAG "SubGhzSchedulerRun"
 
 // Repeat count used when a .sub file has no "Repeat" key. Protocol encoders
@@ -205,6 +215,10 @@ static int32_t scheduler_tx(void* context) {
                 tx_run->environment, furi_string_get_cstr(tx_run->protocol));
             FURI_LOG_I(TAG, "transmitter alloc_init: %p", (void*)transmitter);
 
+#ifdef SCHEDULER_HAS_CUSTOM_BTN
+            // Clear the custom button state left by any previous key
+            subghz_custom_btns_reset();
+#endif
             SubGhzProtocolStatus ds_status =
                 subghz_transmitter_deserialize(transmitter, tx_run->fff_data);
             FURI_LOG_I(TAG, "deserialize status: %d", ds_status);
