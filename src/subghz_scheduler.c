@@ -132,7 +132,10 @@ void scheduler_set_tx_mode(Scheduler* scheduler, SchedulerTxMode tx_mode) {
 
 void scheduler_set_tx_delay_ms(Scheduler* scheduler, uint16_t tx_delay_ms) {
     furi_assert(scheduler);
-    scheduler->tx_delay_ms = CLAMP(tx_delay_ms, 1000, 0);
+    // Clamp, then snap to the nearest menu step (older .sch files used 50ms steps)
+    uint32_t ms = ((tx_delay_ms + TX_DELAY_STEP_MS / 2) / TX_DELAY_STEP_MS) * TX_DELAY_STEP_MS;
+    if(ms > TX_DELAY_MAX_MS) ms = TX_DELAY_MAX_MS;
+    scheduler->tx_delay_ms = (uint16_t)ms;
 }
 
 void scheduler_set_radio(Scheduler* scheduler, uint8_t radio) {
