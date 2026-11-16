@@ -24,7 +24,8 @@ struct ScheduleTxRun {
     bool filetype;
     // Debug knobs, read from SCHEDULER_DEBUG_FILE at the start of each cycle
     uint32_t hold_ms; // >0: mimic native app button hold (Repeat=200, stop after hold_ms)
-    bool native_seq; // reset + set_tx before start_async_tx, like subghz_txrx_tx_start
+    bool reset_each_tx; // subghz_devices_reset before each preset load, like the native app
+    bool set_tx; // subghz_devices_set_tx before start_async_tx, like the native app
 };
 
 #define SCHEDULER_DEBUG_FILE  EXT_PATH("subghz_scheduler/debug.txt")
@@ -35,22 +36,36 @@ struct ScheduleTxRun {
  *   Filetype: Flipper SubGHz Scheduler Debug
  *   Version: 1
  *   HoldMs: 1000
- *   NativeSeq: 1
+ *   Reset: 1      (reset radio before every send)
+ *   SetTx: 1      (strobe TX before start_async_tx)
+ *   NativeSeq: 1  (shorthand for Reset: 1 + SetTx: 1)
  */
 static void tx_run_load_debug(ScheduleTxRun* tx_run) {
     tx_run->hold_ms = 0;
-    tx_run->native_seq = false; // no debug file => same TX sequence as add_counter_loop
+    // no debug file => same TX sequence as add_counter_loop
+    tx_run->reset_each_tx = false;
+    tx_run->set_tx = false;
     FlipperFormat* ff = flipper_format_file_alloc(tx_run->storage);
     if(flipper_format_file_open_existing(ff, SCHEDULER_DEBUG_FILE)) {
         uint32_t v = 0;
         if(flipper_format_read_uint32(ff, "HoldMs", &v, 1)) tx_run->hold_ms = v;
         flipper_format_rewind(ff);
-        if(flipper_format_read_uint32(ff, "NativeSeq", &v, 1)) tx_run->native_seq = v != 0;
+        if(flipper_format_read_uint32(ff, "NativeSeq", &v, 1)) {
+            tx_run->reset_each_tx = tx_run->set_tx = v != 0;
+        }
+        flipper_format_rewind(ff);
+        if(flipper_format_read_uint32(ff, "Reset", &v, 1)) tx_run->reset_each_tx = v != 0;
+        flipper_format_rewind(ff);
+        if(flipper_format_read_uint32(ff, "SetTx", &v, 1)) tx_run->set_tx = v != 0;
     }
     flipper_format_file_close(ff);
     flipper_format_free(ff);
     FURI_LOG_I(
-        TAG, "debug: hold_ms=%lu native_seq=%d", tx_run->hold_ms, tx_run->native_seq);
+        TAG,
+        "debug: hold_ms=%lu reset=%d set_tx=%d",
+        tx_run->hold_ms,
+        tx_run->reset_each_tx,
+        tx_run->set_tx);
 }
 
 static ScheduleTxRun* tx_run_alloc() {
@@ -110,7 +125,7 @@ static void transmit(
     notification_message(app->notifications, &sequence_blink_stop);
     notification_message(app->notifications, &sequence_blink_start_cyan);
 
-    if(tx_run->native_seq) {
+    if(tx_run->set_tx) {
         // Native app strobes STX itself before starting async TX
         bool set_tx = subghz_devices_set_tx(device);
         FURI_LOG_I(TAG, "set_tx returned %d", set_tx);
@@ -253,7 +268,10 @@ static int32_t scheduler_tx(void* context) {
 
             FuriHalSubGhzPreset preset_enum =
                 scheduler_get_subghz_preset_name(furi_string_get_cstr(tx_run->preset));
-            if(tx_run->native_seq) subghz_devices_reset(device);
+            if(tx_run->reset_each_tx) {
+                subghz_devices_reset(device);
+                FURI_LOG_I(TAG, "reset before preset load");
+            }
             subghz_devices_idle(device);
             FURI_LOG_I(TAG, "load_preset enum=%d", preset_enum);
             subghz_devices_load_preset(device, preset_enum, NULL);
