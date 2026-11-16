@@ -243,18 +243,26 @@ static void
     furi_assert(app->thread == thread);
 
     if(state == FuriThreadStateStopped) {
+        // Delivered from the system thread (TCB cleanup), not the GUI thread.
+        // Freeing the thread or switching scenes here races the GUI thread
+        // (e.g. run scene on_exit joining app->thread) and trips furi_check.
+        // Only flag it and let the GUI thread clean up via a custom event.
         FURI_LOG_I(TAG, "Thread stopped");
-        furi_thread_free(thread);
-        app->thread = NULL;
         app->is_transmitting = false;
-        if(scheduler_get_tx_mode(app->scheduler) == SchedulerTxModeOneShot) {
-            scene_manager_search_and_switch_to_previous_scene(
-                app->scene_manager, SchedulerSceneStart);
-        }
+        view_dispatcher_send_custom_event(app->view_dispatcher, SchedulerEventTxDone);
     } else if(state == FuriThreadStateStarting) {
         FURI_LOG_I(TAG, "Thread starting");
         app->is_transmitting = true;
     }
+}
+
+bool scheduler_tx_thread_cleanup(SchedulerApp* app, bool wait) {
+    if(app->thread == NULL) return false;
+    if(!wait && furi_thread_get_state(app->thread) != FuriThreadStateStopped) return false;
+    furi_thread_join(app->thread);
+    furi_thread_free(app->thread);
+    app->thread = NULL;
+    return true;
 }
 
 void scheduler_start_tx(SchedulerApp* app) {
