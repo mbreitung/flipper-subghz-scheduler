@@ -12,7 +12,11 @@
 // Repeat count used when a .sub file has no "Repeat" key. Protocol encoders
 // fall back to their own default, which varies by firmware: OFW Princeton
 // uses 10, Unleashed uses 3 (~150ms on air), which receivers often miss.
-#define SCHEDULER_DEFAULT_REPEAT 10
+// Too long looks like a held button: receivers that auto-repeat on hold
+// trigger twice. Tested on Princeton (24-bit, TE 456, ~52ms/frame): 3 was
+// missed, 4-8 worked every time, 10+ double-triggered on one receiver.
+// 6 (~310ms) sits in the middle of that window.
+#define SCHEDULER_DEFAULT_REPEAT 6
 
 struct ScheduleTxRun {
     Storage* storage;
