@@ -1,7 +1,10 @@
 #include "subghz_scheduler.h"
 #include <furi_hal.h>
+#include <furi_hal_random.h>
 
 #define TAG "SubGHzScheduler"
+
+static const uint32_t tx_cycles_count[TX_CYCLES] = {1, 10, 25, 40, 100, UINT32_MAX};
 
 struct Scheduler {
     uint32_t previous_run_time;
@@ -16,8 +19,12 @@ struct Scheduler {
     uint16_t tx_delay_ms;
 
     uint32_t interval_seconds;
+    uint32_t random_lower;
+    uint32_t random_upper;
 
     uint8_t tx_count;
+    uint8_t tx_cycles;
+    uint8_t tx_cycle_counter;
     uint8_t list_count;
 
     bool radio;
@@ -43,14 +50,19 @@ void scheduler_time_reset(Scheduler* scheduler) {
     furi_assert(scheduler);
     scheduler->previous_run_time = 0;
     scheduler->countdown = 0;
+    scheduler->tx_cycle_counter = 0;
 }
 
 void scheduler_full_reset(Scheduler* scheduler) {
     furi_assert(scheduler);
     scheduler_time_reset(scheduler);
-    scheduler->tx_delay_ms = 100;
+    scheduler->tx_delay_ms = 250;
     scheduler->interval_seconds = 10; // Still default to 10 sec?
+    scheduler->random_lower = 10;
+    scheduler->random_upper = 10;
     scheduler->tx_count = 0;
+    scheduler->tx_cycles = 0;
+    scheduler->tx_cycle_counter = 0;
     scheduler->file_type = SchedulerFileTypeSingle;
     scheduler->list_count = 1;
     scheduler->file_name = NULL;
@@ -70,14 +82,47 @@ void scheduler_set_interval_seconds(Scheduler* scheduler, uint32_t interval_seco
     scheduler->interval_seconds = interval_seconds ? interval_seconds : 1;
 }
 
-void scheduler_set_timing_mode(Scheduler* scheduler, bool tx_mode) {
+void scheduler_set_timing_mode(Scheduler* scheduler, SchedulerTimingMode timing_mode) {
     furi_assert(scheduler);
-    scheduler->timing_mode = tx_mode;
+    scheduler->timing_mode = timing_mode;
+}
+
+void scheduler_set_random_bounds(Scheduler* scheduler, uint32_t lower, uint32_t upper) {
+    furi_assert(scheduler);
+    if(lower == 0) lower = 1;
+    if(upper < lower) upper = lower;
+    scheduler->random_lower = lower;
+    scheduler->random_upper = upper;
+}
+
+uint32_t scheduler_get_random_lower(Scheduler* scheduler) {
+    furi_assert(scheduler);
+    return scheduler->random_lower;
+}
+
+uint32_t scheduler_get_random_upper(Scheduler* scheduler) {
+    furi_assert(scheduler);
+    return scheduler->random_upper;
+}
+
+void scheduler_roll_random_interval(Scheduler* scheduler) {
+    furi_assert(scheduler);
+    uint32_t lo = scheduler->random_lower ? scheduler->random_lower : 1;
+    uint32_t hi = scheduler->random_upper >= lo ? scheduler->random_upper : lo;
+    uint32_t span = (hi - lo) + 1;
+    uint32_t pick = lo + (furi_hal_random_get() % span);
+    scheduler->interval_seconds = pick;
+    FURI_LOG_I(TAG, "random interval rolled: %lu [%lu-%lu]", pick, lo, hi);
 }
 
 void scheduler_set_tx_count(Scheduler* scheduler, uint8_t tx_count) {
     furi_assert(scheduler);
     scheduler->tx_count = tx_count;
+}
+
+void scheduler_set_tx_cycles(Scheduler* scheduler, uint8_t tx_cycles) {
+    furi_assert(scheduler);
+    scheduler->tx_cycles = tx_cycles;
 }
 
 void scheduler_set_tx_mode(Scheduler* scheduler, SchedulerTxMode tx_mode) {
@@ -125,21 +170,50 @@ void scheduler_set_file(Scheduler* scheduler, const char* file_name, int8_t list
 bool scheduler_time_to_trigger(Scheduler* scheduler) {
     furi_assert(scheduler);
     uint32_t current_time = furi_hal_rtc_get_timestamp();
-    uint32_t interval = (scheduler->interval_seconds > 0) ? (scheduler->interval_seconds - 1) : 0;
 
     if((scheduler->tx_mode != SchedulerTxModeImmediate) && !scheduler->previous_run_time) {
+        if(scheduler->timing_mode == SchedulerTimingModeRandom) {
+            scheduler_roll_random_interval(scheduler);
+        }
+        uint32_t interval =
+            (scheduler->interval_seconds > 0) ? (scheduler->interval_seconds - 1) : 0;
         scheduler->previous_run_time = current_time;
         scheduler->countdown = interval;
         return false; // Don't trigger immediately
     }
 
-    if(scheduler->countdown == 0) {
+    if(scheduler->countdown == 0 && !scheduler_time_to_end(scheduler)) {
+        if(scheduler->timing_mode == SchedulerTimingModeRandom) {
+            scheduler_roll_random_interval(scheduler);
+        }
+        uint32_t interval =
+            (scheduler->interval_seconds > 0) ? (scheduler->interval_seconds - 1) : 0;
         scheduler->previous_run_time = current_time;
         scheduler->countdown = interval;
+        FURI_LOG_D(
+            TAG, "tx_cycle_counter = %d/%d", scheduler->tx_cycle_counter, scheduler->tx_cycles);
+        scheduler->tx_cycle_counter++;
         return true;
     }
+    FURI_LOG_D(TAG, "previous time %ld", scheduler->previous_run_time);
+    FURI_LOG_D(TAG, "countdown %ld", scheduler->countdown);
     scheduler->countdown--;
     return false;
+}
+
+bool scheduler_time_to_end(Scheduler* scheduler) {
+    furi_assert(scheduler);
+
+    uint32_t limit = tx_cycles_count[scheduler->tx_cycles];
+    if((uint32_t)scheduler->tx_cycle_counter < limit) {
+        FURI_LOG_D(
+            TAG, "time to end false %d/%d", scheduler->tx_cycle_counter, scheduler->tx_cycles);
+        return false;
+    } else {
+        FURI_LOG_D(
+            TAG, "time to end true %d/%d", scheduler->tx_cycle_counter, scheduler->tx_cycles);
+        return true;
+    }
 }
 
 uint32_t scheduler_get_previous_time(Scheduler* scheduler) {
@@ -160,6 +234,11 @@ uint32_t scheduler_get_countdown_seconds(Scheduler* scheduler) {
 uint8_t scheduler_get_tx_count(Scheduler* scheduler) {
     furi_assert(scheduler);
     return scheduler->tx_count;
+}
+
+uint8_t scheduler_get_tx_cycles(Scheduler* scheduler) {
+    furi_assert(scheduler);
+    return scheduler->tx_cycles;
 }
 
 const char* scheduler_get_file_name(Scheduler* scheduler) {
@@ -197,7 +276,7 @@ uint8_t scheduler_get_list_count(Scheduler* scheduler) {
     return scheduler->list_count;
 }
 
-bool scheduler_get_timing_mode(Scheduler* scheduler) {
+SchedulerTimingMode scheduler_get_timing_mode(Scheduler* scheduler) {
     furi_assert(scheduler);
     return scheduler->timing_mode;
 }

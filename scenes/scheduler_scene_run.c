@@ -1,5 +1,6 @@
 #include "src/scheduler_app_i.h"
 #include "src/scheduler_run.h"
+#include "helpers/scheduler_random_io.h"
 
 #include <lib/subghz/devices/devices.h>
 
@@ -7,6 +8,12 @@ void scheduler_scene_run_on_enter(void* context) {
     SchedulerApp* app = context;
     furi_hal_power_suppress_charge_enter();
     scheduler_time_reset(app->scheduler);
+
+    if(scheduler_get_timing_mode(app->scheduler) == SchedulerTimingModeRandom) {
+        Storage* storage = furi_record_open(RECORD_STORAGE);
+        scheduler_load_random_bounds(app->scheduler, storage);
+        furi_record_close(RECORD_STORAGE);
+    }
 
     scheduler_run_view_set_static_fields(app->run_view, app->scheduler);
     scheduler_run_view_update_countdown(app->run_view, app->scheduler);
@@ -33,8 +40,10 @@ bool scheduler_scene_run_on_event(void* context, SceneManagerEvent event) {
     const uint8_t tick_counter = scheduler_run_view_get_tick_counter(app->run_view);
     bool consumed = false;
 
-    const bool update = (!app->is_transmitting || scheduler_get_timing_mode(app->scheduler)) &&
-                        !(tick_counter % 2);
+    const bool update =
+        (!app->is_transmitting ||
+         scheduler_get_timing_mode(app->scheduler) == SchedulerTimingModePrecise) &&
+        !(tick_counter % 2);
 
     if(event.type == SceneManagerEventTypeTick) {
         if(update) {
@@ -42,7 +51,11 @@ bool scheduler_scene_run_on_event(void* context, SceneManagerEvent event) {
 
             const bool trig = scheduler_time_to_trigger(app->scheduler);
             if(trig) {
+                FURI_LOG_D("scheduler_scene_run", "triggered %d", tick_counter);
                 scheduler_start_tx(app);
+            } else if(scheduler_time_to_end(app->scheduler)) {
+                notification_message(app->notifications, &sequence_blink_green_10);
+                // do somthing to stop the application thread
             } else {
                 notification_message(app->notifications, &sequence_blink_red_10);
             }

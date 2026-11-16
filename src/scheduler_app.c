@@ -42,23 +42,19 @@ static void scheduler_app_ext_device_cleanup() {
 }
 
 static bool scheduler_app_ext_device_init() {
-    bool present = false;
-
     uint8_t otg_attempts = 5;
-    while (!(present = furi_hal_power_is_otg_enabled()) && otg_attempts--) {
+    while(!furi_hal_power_is_otg_enabled() && otg_attempts--) {
         furi_hal_power_enable_otg();
         furi_delay_ms(100);
     }
 
-    if(present) {
-        subghz_devices_init();
-        const SubGhzDevice* device = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_EXT_NAME);
-        present = subghz_devices_is_connect(device);
-        if(!present) {
-            scheduler_app_ext_device_cleanup();
-        }
+    subghz_devices_init();
+    const SubGhzDevice* device = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_EXT_NAME);
+    bool present = subghz_devices_is_connect(device);
+    subghz_devices_deinit();
 
-        subghz_devices_deinit();
+    if(!present) {
+        scheduler_app_ext_device_cleanup();
     }
 
     return present;

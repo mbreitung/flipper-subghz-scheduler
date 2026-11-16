@@ -1,8 +1,8 @@
 # For details & more options, see documentation/AppManifests.md in firmware repo
 
 App(
-    appid="subghz_scheduler",
-    name="Sub-GHz Scheduler",
+    appid="subghz_scheduler_2",
+    name="Sub-GHz MB2 Scheduler",
     apptype=FlipperAppType.EXTERNAL,
     entry_point="scheduler_app",
     stack_size=3 * 1024,
