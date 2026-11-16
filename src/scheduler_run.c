@@ -9,6 +9,15 @@
 
 #define TAG "SubGhzSchedulerRun"
 
+// Repeat count used when a .sub file has no "Repeat" key. Protocol encoders
+// fall back to their own default, which varies by firmware: OFW Princeton
+// uses 10, Unleashed uses 3 (~150ms on air), which receivers often miss.
+// Too long looks like a held button: receivers that auto-repeat on hold
+// trigger twice. Tested on Princeton (24-bit, TE 456, ~52ms/frame): 3 was
+// missed, 4-8 worked every time, 10+ double-triggered on one receiver.
+// 6 (~310ms) sits in the middle of that window.
+#define SCHEDULER_DEFAULT_REPEAT 6
+
 struct ScheduleTxRun {
     Storage* storage;
     FlipperFormat* fff_head;
@@ -153,6 +162,18 @@ static int32_t scheduler_tx(void* context) {
             stream_copy_full(
                 flipper_format_get_raw_stream(tx_run->fff_file),
                 flipper_format_get_raw_stream(tx_run->fff_data));
+
+            uint32_t repeat = 0;
+            flipper_format_rewind(tx_run->fff_data);
+            if(flipper_format_read_uint32(tx_run->fff_data, "Repeat", &repeat, 1)) {
+                FURI_LOG_I(TAG, "Repeat from file: %lu", repeat);
+            } else {
+                repeat = SCHEDULER_DEFAULT_REPEAT;
+                flipper_format_rewind(tx_run->fff_data);
+                flipper_format_insert_or_update_uint32(tx_run->fff_data, "Repeat", &repeat, 1);
+                FURI_LOG_I(TAG, "No Repeat in file, using default %lu", repeat);
+            }
+            flipper_format_rewind(tx_run->fff_data);
         }
         flipper_format_file_close(tx_run->fff_file);
 
