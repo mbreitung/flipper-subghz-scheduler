@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include "helpers/scheduler_hms.h"
+#include "helpers/scheduler_random_io.h"
 #include "helpers/scheduler_settings_io.h"
 #include "scenes/scheduler_scene_loadfile.h"
 #include "src/scheduler_app_i.h"
@@ -46,6 +47,20 @@ static void set_radio_idx(Scheduler* s, uint8_t idx) {
     scheduler_set_radio(s, idx);
 }
 
+static bool has_random_item(SchedulerApp* app) {
+    return scheduler_get_timing_mode(app->scheduler) == SchedulerTimingModeRandom;
+}
+
+uint32_t scheduler_start_view_list_index(SchedulerApp* app, uint32_t menu_index) {
+    if(!has_random_item(app) && menu_index > MenuIndexRandomFile) return menu_index - 1;
+    return menu_index;
+}
+
+uint32_t scheduler_start_view_menu_index(SchedulerApp* app, uint32_t list_index) {
+    if(!has_random_item(app) && list_index >= MenuIndexRandomFile) return list_index + 1;
+    return list_index;
+}
+
 typedef uint8_t (*SchedulerGetIdxFn)(const Scheduler* scheduler);
 typedef void (*SchedulerSetIdxFn)(Scheduler* scheduler, uint8_t idx);
 
@@ -77,7 +92,7 @@ static void scheduler_start_var_list_enter_callback(void* context, uint32_t inde
     furi_assert(context);
     SchedulerApp* app = context;
 
-    switch(index) {
+    switch(scheduler_start_view_menu_index(app, index)) {
     case MenuIndexInterval:
         view_dispatcher_send_custom_event(app->view_dispatcher, SchedulerStartEventSetInterval);
         break;
@@ -86,6 +101,10 @@ static void scheduler_start_var_list_enter_callback(void* context, uint32_t inde
         break;
     case MenuIndexSelectFile:
         view_dispatcher_send_custom_event(app->view_dispatcher, SchedulerStartEventSelectFile);
+        break;
+    case MenuIndexRandomFile:
+        view_dispatcher_send_custom_event(
+            app->view_dispatcher, SchedulerStartEventSelectRandomFile);
         break;
     case MenuIndexSaveSchedule:
         view_dispatcher_send_custom_event(app->view_dispatcher, SchedulerStartEventSaveSchedule);
@@ -98,8 +117,13 @@ static void scheduler_start_var_list_enter_callback(void* context, uint32_t inde
 static void scheduler_start_set_timing(VariableItem* item) {
     SchedulerApp* app = variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
+    const bool was_random = has_random_item(app);
     variable_item_set_current_value_text(item, timing_mode_text[index]);
     scheduler_set_timing_mode(app->scheduler, index);
+    // Show/hide the "Random File" row; rebuild after this callback returns
+    if(was_random != has_random_item(app)) {
+        view_dispatcher_send_custom_event(app->view_dispatcher, SchedulerStartEventSetTiming);
+    }
 }
 
 static void scheduler_start_set_tx_count(VariableItem* item) {
@@ -172,6 +196,24 @@ void scheduler_start_view_rebuild(SchedulerApp* app) {
         get_timing_idx,
         set_timing_idx,
         timing_mode_text);
+
+    if(has_random_item(app)) {
+        VariableItem* rnd = variable_item_list_add(list, "Random File", 0, NULL, app);
+        Storage* storage = furi_record_open(RECORD_STORAGE);
+        if(scheduler_load_random_bounds(
+               app->scheduler, storage, furi_string_get_cstr(app->random_file_path))) {
+            snprintf(
+                buffer,
+                sizeof(buffer),
+                "[%lu-%lus]",
+                scheduler_get_random_lower(app->scheduler),
+                scheduler_get_random_upper(app->scheduler));
+            variable_item_set_current_value_text(rnd, buffer);
+        } else {
+            variable_item_set_current_value_text(rnd, "[Invalid]");
+        }
+        furi_record_close(RECORD_STORAGE);
+    }
 
     add_scheduler_option_item(
         list,
