@@ -13,4 +13,5 @@ typedef enum {
     SchedulerStartRunEvent,
     SchedulerEventPopupDone,
     SchedulerCustomEventErrorBack,
+    SchedulerEventTxDone, // TX thread finished; cleanup runs on the GUI thread
 } SchedulerCustomEvent;
