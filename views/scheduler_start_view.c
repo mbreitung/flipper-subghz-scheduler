@@ -147,6 +147,22 @@ static void scheduler_start_set_mode(VariableItem* item) {
     scheduler_set_tx_mode(app->scheduler, index);
 }
 
+// 0ms, 250ms, 500ms, 750ms, 1s, 1.25s, 1.5s ... 60s
+static void format_tx_delay(uint32_t ms, char* buf, size_t len) {
+    if(ms < 1000) {
+        snprintf(buf, len, "%lums", ms);
+    } else if(ms % 1000 == 0) {
+        snprintf(buf, len, "%lus", ms / 1000);
+    } else {
+        uint32_t centis = (ms % 1000) / 10;
+        if(centis % 10 == 0) {
+            snprintf(buf, len, "%lu.%lus", ms / 1000, centis / 10);
+        } else {
+            snprintf(buf, len, "%lu.%02lus", ms / 1000, centis);
+        }
+    }
+}
+
 static void scheduler_start_set_tx_delay(VariableItem* item) {
     SchedulerApp* app = variable_item_get_context(item);
     uint8_t idx = variable_item_get_current_value_index(item);
@@ -154,7 +170,7 @@ static void scheduler_start_set_tx_delay(VariableItem* item) {
     uint16_t ms = (uint16_t)idx * TX_DELAY_STEP_MS;
 
     char buf[12];
-    snprintf(buf, sizeof(buf), "%ums", (unsigned)ms);
+    format_tx_delay(ms, buf, sizeof(buf));
     variable_item_set_current_value_text(item, buf);
 
     scheduler_set_tx_delay_ms(app->scheduler, ms);
@@ -249,7 +265,7 @@ void scheduler_start_view_rebuild(SchedulerApp* app) {
         list, "TX Delay:", TX_DELAY_COUNT, scheduler_start_set_tx_delay, app);
     const uint8_t dly_idx = scheduler_get_tx_delay_index(app->scheduler);
     variable_item_set_current_value_index(txd, dly_idx);
-    snprintf(buffer, sizeof(buffer), "%ums", (unsigned)((uint16_t)dly_idx * TX_DELAY_STEP_MS));
+    format_tx_delay((uint32_t)dly_idx * TX_DELAY_STEP_MS, buffer, sizeof(buffer));
     variable_item_set_current_value_text(txd, buffer);
 
     const uint8_t radio_count = app->ext_radio_present ? RADIO_DEVICE_COUNT : 1;

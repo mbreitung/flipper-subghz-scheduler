@@ -7,7 +7,26 @@
 #include <subghz_protocol_registry.h>
 #include <transmitter.h>
 
+// Unleashed-only: Princeton (and other) encoders remember the button code of
+// the first key sent in a firmware-wide "custom button" state and substitute it
+// into every later key until subghz_custom_btns_reset() is called. The native
+// SubGHz app resets it; we must too, or a playlist starting with A up (0x03)
+// sends B up (0x33) as 0x303 and Pwr_on (0x30) as A up.
+#if __has_include(<blocks/custom_btn.h>)
+#include <blocks/custom_btn.h>
+#define SCHEDULER_HAS_CUSTOM_BTN 1
+#endif
+
 #define TAG "SubGhzSchedulerRun"
+
+// Repeat count used when a .sub file has no "Repeat" key. Protocol encoders
+// fall back to their own default, which varies by firmware: OFW Princeton
+// uses 10, Unleashed uses 3 (~150ms on air), which receivers often miss.
+// Too long looks like a held button: receivers that auto-repeat on hold
+// trigger twice. Tested on Princeton (24-bit, TE 456, ~52ms/frame): 3 was
+// missed, 4-8 worked every time, 10+ double-triggered on one receiver.
+// 6 (~310ms) sits in the middle of that window.
+#define SCHEDULER_DEFAULT_REPEAT 6
 
 struct ScheduleTxRun {
     Storage* storage;
@@ -153,6 +172,18 @@ static int32_t scheduler_tx(void* context) {
             stream_copy_full(
                 flipper_format_get_raw_stream(tx_run->fff_file),
                 flipper_format_get_raw_stream(tx_run->fff_data));
+
+            uint32_t repeat = 0;
+            flipper_format_rewind(tx_run->fff_data);
+            if(flipper_format_read_uint32(tx_run->fff_data, "Repeat", &repeat, 1)) {
+                FURI_LOG_I(TAG, "Repeat from file: %lu", repeat);
+            } else {
+                repeat = SCHEDULER_DEFAULT_REPEAT;
+                flipper_format_rewind(tx_run->fff_data);
+                flipper_format_insert_or_update_uint32(tx_run->fff_data, "Repeat", &repeat, 1);
+                FURI_LOG_I(TAG, "No Repeat in file, using default %lu", repeat);
+            }
+            flipper_format_rewind(tx_run->fff_data);
         }
         flipper_format_file_close(tx_run->fff_file);
 
@@ -184,6 +215,10 @@ static int32_t scheduler_tx(void* context) {
                 tx_run->environment, furi_string_get_cstr(tx_run->protocol));
             FURI_LOG_I(TAG, "transmitter alloc_init: %p", (void*)transmitter);
 
+#ifdef SCHEDULER_HAS_CUSTOM_BTN
+            // Clear the custom button state left by any previous key
+            subghz_custom_btns_reset();
+#endif
             SubGhzProtocolStatus ds_status =
                 subghz_transmitter_deserialize(transmitter, tx_run->fff_data);
             FURI_LOG_I(TAG, "deserialize status: %d", ds_status);
@@ -222,18 +257,26 @@ static void
     furi_assert(app->thread == thread);
 
     if(state == FuriThreadStateStopped) {
+        // Delivered from the system thread (TCB cleanup), not the GUI thread.
+        // Freeing the thread or switching scenes here races the GUI thread
+        // (e.g. run scene on_exit joining app->thread) and trips furi_check.
+        // Only flag it and let the GUI thread clean up via a custom event.
         FURI_LOG_I(TAG, "Thread stopped");
-        furi_thread_free(thread);
-        app->thread = NULL;
         app->is_transmitting = false;
-        if(scheduler_get_tx_mode(app->scheduler) == SchedulerTxModeOneShot) {
-            scene_manager_search_and_switch_to_previous_scene(
-                app->scene_manager, SchedulerSceneStart);
-        }
+        view_dispatcher_send_custom_event(app->view_dispatcher, SchedulerEventTxDone);
     } else if(state == FuriThreadStateStarting) {
         FURI_LOG_I(TAG, "Thread starting");
         app->is_transmitting = true;
     }
+}
+
+bool scheduler_tx_thread_cleanup(SchedulerApp* app, bool wait) {
+    if(app->thread == NULL) return false;
+    if(!wait && furi_thread_get_state(app->thread) != FuriThreadStateStopped) return false;
+    furi_thread_join(app->thread);
+    furi_thread_free(app->thread);
+    app->thread = NULL;
+    return true;
 }
 
 void scheduler_start_tx(SchedulerApp* app) {

@@ -18,10 +18,7 @@ void scheduler_scene_run_on_enter(void* context) {
 void scheduler_scene_run_on_exit(void* context) {
     SchedulerApp* app = context;
 
-    if(app->thread != NULL) {
-        furi_thread_join(app->thread);
-        app->thread = NULL;
-    }
+    scheduler_tx_thread_cleanup(app, true);
 
     scheduler_time_reset(app->scheduler);
     subghz_devices_deinit();
@@ -55,6 +52,14 @@ bool scheduler_scene_run_on_event(void* context, SceneManagerEvent event) {
         }
 
         scheduler_run_view_inc_tick_counter(app->run_view);
+        consumed = true;
+    } else if(event.type == SceneManagerEventTypeCustom && event.event == SchedulerEventTxDone) {
+        // Ignore a stale event if a newer TX thread is still running
+        if(scheduler_tx_thread_cleanup(app, false) &&
+           scheduler_get_tx_mode(app->scheduler) == SchedulerTxModeOneShot) {
+            scene_manager_search_and_switch_to_previous_scene(
+                app->scene_manager, SchedulerSceneStart);
+        }
         consumed = true;
     }
 
