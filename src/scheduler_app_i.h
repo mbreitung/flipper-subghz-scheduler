@@ -49,6 +49,7 @@ struct SchedulerApp {
     FuriThread* thread;
     Scheduler* scheduler;
     FuriString* tx_file_path;
+    FuriString* random_file_path;
     FuriString* save_dir;
     Popup* popup;
     TextInput* text_input;

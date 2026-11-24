@@ -9,6 +9,7 @@ typedef enum {
     SchedulerStartEventSetTxDelay,
     SchedulerStartEventSetRadio,
     SchedulerStartEventSelectFile,
+    SchedulerStartEventSelectRandomFile,
     SchedulerStartEventSaveSchedule,
     SchedulerStartRunEvent,
     SchedulerEventPopupDone,

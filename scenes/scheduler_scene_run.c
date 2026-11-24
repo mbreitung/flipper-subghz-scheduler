@@ -1,6 +1,5 @@
 #include "src/scheduler_app_i.h"
 #include "src/scheduler_run.h"
-#include "helpers/scheduler_random_io.h"
 
 #include <lib/subghz/devices/devices.h>
 
@@ -8,12 +7,6 @@ void scheduler_scene_run_on_enter(void* context) {
     SchedulerApp* app = context;
     furi_hal_power_suppress_charge_enter();
     scheduler_time_reset(app->scheduler);
-
-    if(scheduler_get_timing_mode(app->scheduler) == SchedulerTimingModeRandom) {
-        Storage* storage = furi_record_open(RECORD_STORAGE);
-        scheduler_load_random_bounds(app->scheduler, storage);
-        furi_record_close(RECORD_STORAGE);
-    }
 
     scheduler_run_view_set_static_fields(app->run_view, app->scheduler);
     scheduler_run_view_update_countdown(app->run_view, app->scheduler);
